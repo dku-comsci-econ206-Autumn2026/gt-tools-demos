@@ -89,7 +89,21 @@ The static browser tutorial converts the learning path into three practical modu
 |---|---|---|
 | **A · Strategic Thinking** | Enter players, strategies, timing, and information; construct the smallest intuitive example | Rejects fewer than two players or two strategies and guides the student toward Nash, Selten, or Harsanyi |
 | **B · Interdisciplinary Contribution** | Draft the literature-gap pivot and compare the closest papers dimension by dimension | Requires **However** or **Yet**, generates a counterexample-search prompt, and labels AI suggestions **UNVERIFIED** until a human checks the sources |
-| **C · Three Perspectives** | Compare Boston and student-proposing deferred acceptance through three disciplinary personas | Animates both mechanisms and checks manipulation, blocking pairs, and transfer to the student’s own project |
+| **C · Three Perspectives** | Compare Boston and student-proposing deferred acceptance through three disciplinary personas | Animates proposal → decision → continuation, names who exits or remains active, and checks manipulation and blocking pairs |
+
+### School-choice mechanism at a glance
+
+Let $U$ be students still seeking a seat, $P_s^r$ the round-$r$ proposals to school $s$, $H_s^r$ its current holds, and $q_s$ its capacity.
+
+| Phase | Boston / immediate acceptance | Gale–Shapley / student-proposing deferred acceptance |
+|---|---|---|
+| ⚙️ **Initialize** | $U\leftarrow N$; all seats open | $U\leftarrow N$ and $H_s^0\leftarrow\varnothing$ |
+| → **Propose** | Every $i\in U$ applies to rank $r$ | Every rejected $i\in U$ proposes to the next untried school |
+| 🏫 **Decide** | Permanently accept the highest-priority students in $P_s^r$ up to remaining capacity | From $H_s^{r-1}\cup P_s^r$, tentatively hold the top $q_s$ students and release the rest |
+| ↺ **Continue** | Accepted students exit; rejected students try rank $r+1$ | Rejected or displaced students continue; held students can still be displaced |
+| 🏁 **Finalize** | Each acceptance is final immediately | All holds become final only when no proposal remains |
+
+**Difference to remember:** Boston locks a seat now; deferred acceptance keeps the seat contestable until proposals stop. The [school-choice notebook](notebooks/school_choice/03_School_Choice_Three_Perspectives.ipynb) shows the exact baseline trace and lets students move one school to the top of one submitted ranking.
 
 ### Human-first protocol
 
@@ -113,7 +127,7 @@ The studio stores no form data, uses no API key, and sends no student response t
 |---:|---|---|---|---|
 | **01** | [QuantEcon + Nashpy](notebooks/quantecon_nashpy/01_QuantEcon_Nashpy_Interactive.ipynb) | Static, complete-information 2×2 games | Change any of the eight payoffs or select a preset | Both tools agree; unilateral deviation gains are tested |
 | **02** | [Gambit / PyGambit](notebooks/gambit_pygambit/02_Gambit_PyGambit_Interactive.ipynb) | Matrix → sequential entry → private-cost entry | Change threat credibility, entry payoffs, prior, or costs | Pure Nash, backward-induction SPNE, and type-conditional Bayesian incentives are checked |
-| **03** | [School choice](notebooks/school_choice/03_School_Choice_Three_Perspectives.ipynb) | Boston and Gale–Shapley student-proposing deferred acceptance | Change preferences, priorities, or mechanism | Allocation trace, blocking pairs, and a Boston manipulation counterexample are checked |
+| **03** | [School choice](notebooks/school_choice/03_School_Choice_Three_Perspectives.ipynb) | Boston and Gale–Shapley student-proposing deferred acceptance | Move one school to the top of one student's ranking, then switch mechanisms | Proposal/decision/continuation trace, blocking pairs, and a Boston manipulation counterexample |
 
 ### Run in Google Colab
 

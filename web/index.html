@@ -23,7 +23,7 @@
       <a href="#contribution">02 Contribution</a>
       <a href="#personas">03 Mechanisms</a>
     </nav>
-    <a class="ghost-button" href="https://github.com/sunshineluyao/gt-tools-demos" target="_blank" rel="noreferrer">GitHub ↗</a>
+    <div class="header-actions"><button id="motion-toggle" class="motion-button" type="button" aria-pressed="false">Pause motion</button><a class="ghost-button" href="https://github.com/sunshineluyao/gt-tools-demos" target="_blank" rel="noreferrer">GitHub ↗</a></div>
   </header>
 
   <main id="main">
@@ -226,8 +226,8 @@
 
       <article class="mechanism-lab panel">
         <div class="mechanism-head">
-          <div><div class="panel-label">SCHOOL-CHOICE MATCHING LAB</div><h3>Final acceptances versus tentative holds</h3><p>The same students, preferences, school priorities, and capacities produce different paths. Advance one round at a time, then inspect stability and incentives.</p></div>
-          <div class="mechanism-controls"><label for="mechanism-select">Mechanism</label><select id="mechanism-select"><option value="boston">Boston mechanism</option><option value="deferred">Gale–Shapley deferred acceptance</option></select><button id="reset-match" type="button">Reset</button><button id="next-round" class="primary-button" type="button">Next round →</button></div>
+          <div><div class="panel-label">SCHOOL-CHOICE MATCHING LAB</div><h3>Final acceptances versus tentative holds</h3><p>Read every round in three phases: <strong>who proposes → what each school decides → who leaves or continues</strong>. Boston locks accepted students out of later rounds; Gale–Shapley keeps every hold tentative until proposals stop.</p></div>
+          <div class="mechanism-controls"><label for="mechanism-select">Mechanism</label><select id="mechanism-select"><option value="boston">Boston mechanism</option><option value="deferred">Gale–Shapley deferred acceptance</option></select><button id="reset-match" type="button">Reset</button><button id="play-rounds" type="button" aria-pressed="false">▶ Play rounds</button><button id="next-round" class="primary-button" type="button">Next round →</button></div>
         </div>
         <div class="match-layout">
           <div class="preferences-table"><h4>Student preferences</h4><div id="student-preferences"></div><p class="micro-note">All schools use priority Amina ≻ Bo ≻ Chen ≻ Dara. Capacities: Aurora 1, Beacon 1, Cedar 2.</p></div>
@@ -236,7 +236,7 @@
             <div class="student-column" id="student-nodes"></div>
             <div class="school-column" id="school-nodes"></div>
           </div>
-          <div class="round-log"><div class="round-counter" id="round-counter">ROUND 0</div><h4 id="round-title">Start</h4><div id="round-applications"></div><div id="stability-result"></div></div>
+          <div class="round-log"><div class="round-counter" id="round-counter">ROUND 1</div><h4 id="round-title">Round 1</h4><div id="round-applications" aria-live="polite"></div><div id="stability-result"></div></div>
         </div>
         <div class="mechanism-comparison">
           <div><strong>Boston</strong><span>Schools make final acceptances each round.</span><small>Fast and intuitive, but students can benefit from strategic ranking in this example.</small></div>

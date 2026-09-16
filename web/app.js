@@ -1,6 +1,7 @@
 import {
   SCHOOL_CHOICE_SCENARIO,
   classifyGame,
+  describeMatchingRound,
   findBlockingPairs,
   findPureNash,
   runBoston,
@@ -70,6 +71,8 @@ function updateNash() {
     $('#nash-result').textContent = equilibria.length
       ? `Pure Nash: ${equilibria.map(([row, column]) => `(${rowNames[row]}, ${columnNames[column]})`).join('; ')}`
       : 'No pure Nash equilibrium; inspect mixed strategies.';
+    $('#nash-result').classList.remove('result-updated');
+    requestAnimationFrame(() => $('#nash-result').classList.add('result-updated'));
   } catch (error) {
     $('#nash-result').textContent = error.message;
   }
@@ -162,7 +165,8 @@ const runs = {
   deferred: runDeferredAcceptance(SCHOOL_CHOICE_SCENARIO),
 };
 let mechanism = 'boston';
-let historyIndex = 0;
+let historyIndex = 1;
+let playTimer = null;
 
 function nodeCenter(node, canvas) {
   const rect = node.getBoundingClientRect();
@@ -175,7 +179,7 @@ function linkPath(student, school, className) {
   const from = nodeCenter($(`[data-student="${student}"]`), canvas);
   const to = nodeCenter($(`[data-school="${school}"]`), canvas);
   const midpoint = (from.x + to.x) / 2;
-  return `<path class="match-line ${className}" d="M ${from.x} ${from.y} C ${midpoint} ${from.y}, ${midpoint} ${to.y}, ${to.x} ${to.y}"/>`;
+  return `<path pathLength="1" class="match-line ${className}" d="M ${from.x} ${from.y} C ${midpoint} ${from.y}, ${midpoint} ${to.y}, ${to.x} ${to.y}"/>`;
 }
 
 function drawMatchingLines(step) {
@@ -191,15 +195,26 @@ function drawMatchingLines(step) {
 function renderHistoryStep() {
   const run = runs[mechanism];
   const step = run.history[historyIndex];
+  const story = describeMatchingRound(SCHOOL_CHOICE_SCENARIO, run, historyIndex, mechanism);
   $('#round-counter').textContent = `ROUND ${step.round}`;
   $('#round-title').textContent = step.label;
-  const applications = Object.entries(step.applications || {}).filter(([, students]) => students.length);
-  $('#round-applications').innerHTML = applications.length
-    ? `<div class="application-list">${applications.map(([school, students]) => `<div><b>${escapeHtml(school)}</b><br>${students.map(escapeHtml).join(', ')}</div>`).join('')}</div>`
-    : '<p class="micro-note">No new applications in this state.</p>';
+  $('#round-applications').innerHTML = `
+    <div class="round-flow">
+      <section><span>1 · PROPOSE →</span><p>${story.proposals.map(escapeHtml).join('<br>')}</p></section>
+      <section><span>2 · SCHOOL DECIDES →</span><p>${story.decisions.map(escapeHtml).join('<br>')}</p></section>
+      <section><span>3 · CONTINUE ↺</span><p>${escapeHtml(story.continuation)}</p></section>
+    </div>`;
+  SCHOOL_CHOICE_SCENARIO.students.forEach((student) => {
+    const node = $(`[data-student="${student}"]`);
+    node.dataset.status = story.status[student];
+    node.classList.remove('status-updated');
+    requestAnimationFrame(() => node.classList.add('status-updated'));
+    $('small', node).textContent = story.status[student];
+  });
   const final = historyIndex === run.history.length - 1;
   $('#next-round').disabled = final;
   $('#next-round').textContent = final ? 'Final allocation' : 'Next round →';
+  if (final) stopPlayback();
   if (final) {
     const blocks = findBlockingPairs(SCHOOL_CHOICE_SCENARIO, run);
     $('#stability-result').innerHTML = blocks.length
@@ -215,13 +230,33 @@ $('#next-round').addEventListener('click', () => {
   historyIndex = Math.min(historyIndex + 1, runs[mechanism].history.length - 1);
   renderHistoryStep();
 });
-$('#reset-match').addEventListener('click', () => { historyIndex = 0; renderHistoryStep(); });
+$('#reset-match').addEventListener('click', () => { stopPlayback(); historyIndex = 0; renderHistoryStep(); });
 $('#mechanism-select').addEventListener('change', (event) => {
+  stopPlayback();
   mechanism = event.target.value;
-  historyIndex = 0;
+  historyIndex = 1;
   renderHistoryStep();
 });
 window.addEventListener('resize', () => renderHistoryStep());
+
+function stopPlayback() {
+  window.clearInterval(playTimer);
+  playTimer = null;
+  $('#play-rounds').textContent = '▶ Play rounds';
+  $('#play-rounds').setAttribute('aria-pressed', 'false');
+}
+
+$('#play-rounds').addEventListener('click', () => {
+  if (playTimer) return stopPlayback();
+  if (historyIndex === runs[mechanism].history.length - 1) historyIndex = 0;
+  $('#play-rounds').textContent = '❚❚ Pause';
+  $('#play-rounds').setAttribute('aria-pressed', 'true');
+  renderHistoryStep();
+  playTimer = window.setInterval(() => {
+    historyIndex += 1;
+    renderHistoryStep();
+  }, 2200);
+});
 
 function allocationText(run) {
   return SCHOOL_CHOICE_SCENARIO.students.map((student) => `${student} → ${run.byStudent[student] || 'unmatched'}`).join('<br>');
@@ -250,6 +285,30 @@ $('.dialog-close').addEventListener('click', () => $('#comparison-dialog').close
 $('#comparison-dialog').addEventListener('click', (event) => {
   if (event.target === $('#comparison-dialog')) $('#comparison-dialog').close();
 });
+
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const motionButton = $('#motion-toggle');
+motionButton.addEventListener('click', () => {
+  const paused = document.body.classList.toggle('motion-paused');
+  motionButton.textContent = paused ? 'Resume motion' : 'Pause motion';
+  motionButton.setAttribute('aria-pressed', String(paused));
+  if (paused) stopPlayback();
+});
+
+const revealTargets = $$('.chapter-heading, .panel, .lineage, .handoff');
+revealTargets.forEach((target) => target.dataset.reveal = '');
+if (!reducedMotion && 'IntersectionObserver' in window) {
+  document.documentElement.classList.add('reveal-enabled');
+  const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('revealed');
+      observer.unobserve(entry.target);
+    }
+  }), { threshold: 0.12 });
+  revealTargets.forEach((target) => observer.observe(target));
+} else {
+  revealTargets.forEach((target) => target.classList.add('revealed'));
+}
 
 renderDiagnosis();
 updateNash();

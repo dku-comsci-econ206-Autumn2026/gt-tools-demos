@@ -43,7 +43,7 @@ async function openPage(viewport, label) {
   const geometry = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
-    clipped: [...document.querySelectorAll('.panel, .lens-strip article, .dimension-grid article, .persona-stage article, .handoff-grid article')]
+    clipped: [...document.querySelectorAll('.panel, .lens-strip article, .dimension-grid article, .persona-stage article, .handoff-grid article, .round-flow section')]
       .filter((element) => element.scrollWidth > element.clientWidth + 2)
       .map((element) => `${element.tagName}.${element.className}`),
   }));
@@ -72,6 +72,15 @@ try {
   if (!await desktop.locator('#abstract-result').getByText('Gap pivot detected').isVisible()) errors.push('desktop: valid gap pivot failed');
 
   console.log('Browser QA: checking Boston rounds');
+  if (!await desktop.locator('#round-applications').getByText('Amina → Beacon').isVisible()) errors.push('desktop: round-one proposals are not explicit');
+  if (!await desktop.locator('#round-applications').getByText(/FINAL accept Amina/).isVisible()) errors.push('desktop: round-one final acceptance is not explicit');
+  if (!await desktop.locator('#round-applications').getByText(/Permanently assigned and out: Amina, Chen/).isVisible()) errors.push('desktop: round-one exit status is not explicit');
+  await desktop.locator('#play-rounds').click();
+  if (await desktop.locator('#play-rounds').getAttribute('aria-pressed') !== 'true') errors.push('desktop: autoplay did not start');
+  await desktop.locator('#play-rounds').click();
+  await desktop.locator('#motion-toggle').click();
+  if (!await desktop.locator('body').evaluate((element) => element.classList.contains('motion-paused'))) errors.push('desktop: motion pause did not activate');
+  await desktop.locator('#motion-toggle').click();
   for (let step = 0; step < 10 && await desktop.locator('#next-round').isEnabled(); step += 1) await desktop.locator('#next-round').click();
   if (!await desktop.locator('#stability-result').getByText('Not stable in this example.').isVisible()) errors.push('desktop: Boston blocking-pair result missing');
   await desktop.locator('#mechanism-select').selectOption('deferred');

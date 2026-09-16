@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   SCHOOL_CHOICE_SCENARIO,
   classifyGame,
+  describeMatchingRound,
   findBlockingPairs,
   findPureNash,
   runBoston,
@@ -33,5 +34,12 @@ assert.equal(boston.byStudent.Bo, 'Cedar');
 assert.equal(deferred.byStudent.Bo, 'Aurora');
 assert.deepEqual(findBlockingPairs(SCHOOL_CHOICE_SCENARIO, boston), [['Bo', 'Aurora']]);
 assert.deepEqual(findBlockingPairs(SCHOOL_CHOICE_SCENARIO, deferred), []);
+const bostonRoundOne = describeMatchingRound(SCHOOL_CHOICE_SCENARIO, boston, 1, 'boston');
+assert.deepEqual(bostonRoundOne.proposals, ['Chen → Aurora', 'Dara → Aurora', 'Amina → Beacon', 'Bo → Beacon']);
+assert.match(bostonRoundOne.decisions.join(' '), /FINAL accept Amina/);
+assert.match(bostonRoundOne.continuation, /Permanently assigned and out: Amina, Chen/);
+const deferredRoundTwo = describeMatchingRound(SCHOOL_CHOICE_SCENARIO, deferred, 2, 'deferred');
+assert.match(deferredRoundTwo.decisions.join(' '), /tentatively hold Bo; reject\/release Chen/);
+assert.match(deferredRoundTwo.continuation, /Rejected or displaced and proposing next: Chen/);
 
-console.log('Web logic checks passed: triage, Nash, abstract gap, Boston, deferred acceptance, and stability.');
+console.log('Web logic checks passed: triage, Nash, abstract gap, matching paths, round narration, and stability.');

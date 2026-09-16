@@ -200,6 +200,61 @@ export function findBlockingPairs({ students, schools, capacities, preferences, 
   return pairs;
 }
 
+export function describeMatchingRound({ students, schools }, result, index, mechanism) {
+  const step = result.history[index];
+  if (!step) throw new RangeError('Matching round does not exist.');
+  const status = Object.fromEntries(students.map((student) => [student, 'active']));
+  if (index === 0) {
+    return {
+      proposals: ['No proposals yet.'],
+      decisions: ['No school has made a decision.'],
+      continuation: 'All students begin active.',
+      status,
+    };
+  }
+
+  const previous = result.history[index - 1];
+  const applications = step.applications || {};
+  const proposals = schools.flatMap((school) =>
+    (applications[school] || []).map((student) => `${student} → ${school}`));
+  const finalizing = mechanism === 'deferred' && index === result.history.length - 1 && !proposals.length;
+  if (finalizing) {
+    students.forEach((student) => { status[student] = 'final'; });
+    return {
+      proposals: ['No proposal remains.'],
+      decisions: ['Every tentative hold becomes a final assignment.'],
+      continuation: students.map((student) => `${student} → ${step.byStudent[student] || 'unmatched'}`).join('; '),
+      status,
+    };
+  }
+
+  const decisions = [];
+  schools.forEach((school) => {
+    const incoming = applications[school] || [];
+    const pool = [...new Set([...(previous.bySchool[school] || []), ...incoming])];
+    const selected = step.bySchool[school] || [];
+    const accepted = mechanism === 'boston'
+      ? selected.filter((student) => !(previous.bySchool[school] || []).includes(student))
+      : selected;
+    const rejected = pool.filter((student) => !selected.includes(student));
+    if (incoming.length || (mechanism === 'deferred' && rejected.length)) {
+      const action = mechanism === 'boston' ? 'FINAL accept' : 'tentatively hold';
+      decisions.push(`${school}: ${action} ${accepted.join(', ') || 'no one'}; reject/release ${rejected.join(', ') || 'no one'}.`);
+    }
+    accepted.forEach((student) => { status[student] = mechanism === 'boston' ? 'final' : 'held'; });
+    rejected.forEach((student) => { status[student] = 'rejected'; });
+  });
+  students.forEach((student) => {
+    if (step.byStudent[student] && status[student] === 'active') status[student] = mechanism === 'boston' ? 'final' : 'held';
+  });
+  const assigned = students.filter((student) => step.byStudent[student]);
+  const active = students.filter((student) => !step.byStudent[student]);
+  const continuation = mechanism === 'boston'
+    ? `Permanently assigned and out: ${assigned.join(', ') || 'none'}. Next round: ${active.join(', ') || 'none'}.`
+    : `Held, not final: ${assigned.join(', ') || 'none'}. Rejected or displaced and proposing next: ${active.join(', ') || 'none'}.`;
+  return { proposals: proposals.length ? proposals : ['No new proposal.'], decisions, continuation, status };
+}
+
 export const SCHOOL_CHOICE_SCENARIO = {
   students: ['Amina', 'Bo', 'Chen', 'Dara'],
   schools: ['Aurora', 'Beacon', 'Cedar'],
