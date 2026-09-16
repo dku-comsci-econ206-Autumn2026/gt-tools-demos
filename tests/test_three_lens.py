@@ -31,7 +31,12 @@ class ThreeLensReleaseTests(unittest.TestCase):
         html = (ROOT / 'web/index.html').read_text()
         parser = CollectingParser()
         parser.feed(html)
-        for marker in ['strategic', 'contribution', 'personas', 'game-form', 'abstract-input', 'matching-canvas', 'play-rounds', 'motion-toggle']:
+        for marker in [
+            'strategic', 'contribution', 'personas', 'game-form', 'abstract-input',
+            'solution-nash', 'solution-selten', 'solution-harsanyi', 'trace-nash',
+            'solve-selten', 'solve-harsanyi', 'sample-harsanyi',
+            'matching-canvas', 'play-rounds', 'motion-toggle',
+        ]:
             self.assertIn(marker, parser.ids)
         self.assertEqual(parser.scripts, ['./app.js'])
         self.assertEqual(parser.stylesheets, ['./styles.css'])
@@ -54,8 +59,23 @@ class ThreeLensReleaseTests(unittest.TestCase):
                        '@media (prefers-reduced-motion: reduce)', '.motion-paused']:
             self.assertIn(marker, css)
         self.assertIn("$('#play-rounds').addEventListener", js)
+        self.assertIn("$('#solve-selten').addEventListener", js)
+        self.assertIn("$('#solve-harsanyi').addEventListener", js)
+        self.assertIn("$('#sample-harsanyi').addEventListener", js)
         self.assertIn("motionButton.addEventListener", js)
         self.assertIn('IntersectionObserver', js)
+
+    def test_matching_primary_button_remains_readable_in_dark_mode(self):
+        css = (ROOT / 'web/styles.css').read_text()
+        enabled = re.search(r'\.mechanism-controls \.primary-button\s*\{([^}]+)\}', css)
+        disabled = re.search(r'\.mechanism-controls \.primary-button:disabled\s*\{([^}]+)\}', css)
+        self.assertIsNotNone(enabled)
+        self.assertIsNotNone(disabled)
+        self.assertIn('linear-gradient', enabled.group(1))
+        self.assertIn('color: #04111d', enabled.group(1))
+        self.assertIn('color: var(--ink) !important', disabled.group(1))
+        self.assertIn('-webkit-text-fill-color: var(--ink)', disabled.group(1))
+        self.assertIn('opacity: 1', disabled.group(1))
 
     def test_readme_avoids_markdown_sensitive_superscripts(self):
         for relative in ['README.md', 'docs/01_Matrix_Games_Demo.md']:

@@ -1,11 +1,13 @@
 import {
   SCHOOL_CHOICE_SCENARIO,
+  analyzePureNash,
   classifyGame,
   describeMatchingRound,
   findBlockingPairs,
-  findPureNash,
   runBoston,
   runDeferredAcceptance,
+  solveBayesianEntry,
+  solveSequentialEntry,
   validateAbstract,
 } from './logic.js';
 
@@ -45,6 +47,7 @@ function renderDiagnosis() {
       <p><strong>Falsify:</strong> ${escapeHtml(result.check)}</p>
       <p><strong>Boundary:</strong> ${escapeHtml(result.caution)}</p>
     </div>`;
+  activateSolutionLens(result.lens.toLowerCase(), false);
 }
 
 $('#game-form').addEventListener('submit', (event) => {
@@ -63,21 +66,245 @@ function matrixFromInputs(owner) {
   return [[value('00'), value('01')], [value('10'), value('11')]];
 }
 
+const solutionTabs = $$('.solution-tabs [role="tab"]');
+let solutionTimers = [];
+
+function clearSolutionTimers() {
+  solutionTimers.forEach((timer) => window.clearTimeout(timer));
+  solutionTimers = [];
+}
+
+function runSolutionSteps(steps) {
+  clearSolutionTimers();
+  const instant = reducedMotion || document.body.classList.contains('motion-paused');
+  steps.forEach((step, index) => {
+    if (instant || index === 0) step();
+    else solutionTimers.push(window.setTimeout(step, index * 650));
+  });
+}
+
+function activateSolutionLens(name, focusTab = true) {
+  const activeTab = solutionTabs.find((button) => button.dataset.solution === name);
+  if (!activeTab) return;
+  solutionTabs.forEach((button) => {
+    const selected = button === activeTab;
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  });
+  $$('.solution-panel').forEach((panel) => {
+    const selected = panel.id === `solution-${name}`;
+    panel.hidden = !selected;
+    panel.classList.toggle('panel-enter', selected);
+  });
+  clearSolutionTimers();
+  if (focusTab) activeTab.focus();
+}
+
+solutionTabs.forEach((button, index) => {
+  button.addEventListener('click', () => activateSolutionLens(button.dataset.solution, false));
+  button.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const shift = event.key === 'ArrowRight' ? 1 : -1;
+    const next = solutionTabs[(index + shift + solutionTabs.length) % solutionTabs.length];
+    activateSolutionLens(next.dataset.solution);
+  });
+});
+
+function resetNashTrace() {
+  $$('[data-payoff-cell]').forEach((cell) => cell.classList.remove('row-best', 'column-best', 'equilibrium-cell'));
+  $$('#nash-steps span').forEach((step) => step.classList.remove('active', 'complete'));
+}
+
 function updateNash() {
   try {
-    const equilibria = findPureNash(matrixFromInputs('row'), matrixFromInputs('column'));
+    const analysis = analyzePureNash(matrixFromInputs('row'), matrixFromInputs('column'));
     const rowNames = ['Cooperate', 'Defect'];
     const columnNames = ['Cooperate', 'Defect'];
-    $('#nash-result').textContent = equilibria.length
-      ? `Pure Nash: ${equilibria.map(([row, column]) => `(${rowNames[row]}, ${columnNames[column]})`).join('; ')}`
+    $('#nash-result').textContent = analysis.equilibria.length
+      ? `Pure Nash: ${analysis.equilibria.map(([row, column]) => `(${rowNames[row]}, ${columnNames[column]})`).join('; ')}`
       : 'No pure Nash equilibrium; inspect mixed strategies.';
     $('#nash-result').classList.remove('result-updated');
     requestAnimationFrame(() => $('#nash-result').classList.add('result-updated'));
+    return analysis;
   } catch (error) {
     $('#nash-result').textContent = error.message;
+    return null;
   }
 }
-$$('[data-matrix]').forEach((input) => input.addEventListener('input', updateNash));
+
+function traceNash() {
+  resetNashTrace();
+  const analysis = updateNash();
+  if (!analysis) return;
+  const selectCells = (cells, className) => cells.forEach(([row, column]) => {
+    $(`[data-payoff-cell="${row}${column}"]`).classList.add(className);
+  });
+  const step = (name) => $(`[data-nash-step="${name}"]`);
+  runSolutionSteps([
+    () => { step('row').classList.add('active'); selectCells(analysis.rowBestCells, 'row-best'); },
+    () => { step('row').classList.replace('active', 'complete'); step('column').classList.add('active'); selectCells(analysis.columnBestCells, 'column-best'); },
+    () => { step('column').classList.replace('active', 'complete'); step('equilibrium').classList.add('active', 'complete'); selectCells(analysis.equilibria, 'equilibrium-cell'); },
+  ]);
+}
+
+$('#trace-nash').addEventListener('click', traceNash);
+$$('[data-matrix]').forEach((input) => input.addEventListener('input', () => {
+  clearSolutionTimers();
+  resetNashTrace();
+  updateNash();
+}));
+
+const numberFrom = (selector) => Number($(selector).value);
+const payoffText = ([first, second]) => `(${first}, ${second})`;
+
+function sequentialInput() {
+  const value = (name) => Number($(`[data-selten="${name}"]`).value);
+  return {
+    out: [value('out-entrant'), value('out-incumbent')],
+    fight: [value('fight-entrant'), value('fight-incumbent')],
+    accommodate: [value('accommodate-entrant'), value('accommodate-incumbent')],
+  };
+}
+
+function resetSeltenVisual() {
+  $$('.entry-tree .tree-edge, .entry-tree .tree-node, .entry-tree .terminal').forEach((element) => element.classList.remove('active', 'candidate', 'chosen', 'dimmed'));
+}
+
+function describeSequentialSolution(result) {
+  return `SPNE: ${result.profiles.map((profile) => `Entrant ${profile.entrant}; Incumbent ${profile.incumbent} after entry → ${profile.outcome} ${payoffText(profile.payoffs)}`).join(' | ')}`;
+}
+
+function markSequentialSolution(result) {
+  const entrantActions = new Set(result.profiles.map((profile) => profile.entrant));
+  result.incumbentBestActions.forEach((action) => $(`[data-tree-edge="${action.toLowerCase()}"]`).classList.add('chosen'));
+  if (entrantActions.has('Stay out')) {
+    $('[data-tree-edge="out"]').classList.add('chosen');
+    $('[data-terminal="out"]').classList.add('chosen');
+  }
+  if (entrantActions.has('Enter')) {
+    $('[data-tree-edge="enter"]').classList.add('chosen');
+    result.profiles.filter((profile) => profile.entrant === 'Enter').forEach((profile) => {
+      $(`[data-terminal="${profile.outcome.toLowerCase()}"]`).classList.add('chosen');
+    });
+  }
+}
+
+function solveSelten(animate = true) {
+  try {
+    const result = solveSequentialEntry(sequentialInput());
+    $('#selten-payoff-out').textContent = payoffText(result.terminals['Stay out']);
+    $('#selten-payoff-fight').textContent = payoffText(result.terminals.Fight);
+    $('#selten-payoff-accommodate').textContent = payoffText(result.terminals.Accommodate);
+    resetSeltenVisual();
+    if (!animate) {
+      markSequentialSolution(result);
+      $('#selten-result').textContent = describeSequentialSolution(result);
+      return result;
+    }
+    runSolutionSteps([
+      () => {
+        $('[data-tree-node="incumbent"]').classList.add('active');
+        result.incumbentBestActions.forEach((action) => $(`[data-tree-edge="${action.toLowerCase()}"]`).classList.add('candidate'));
+        $('#selten-result').textContent = `Step 1: after entry, the incumbent compares ${result.terminals.Fight[1]} with ${result.terminals.Accommodate[1]}.`;
+      },
+      () => {
+        $('[data-tree-node="entrant"]').classList.add('active');
+        markSequentialSolution(result);
+        $('#selten-result').textContent = 'Step 2: the entrant anticipates that credible continuation and compares it with staying out.';
+      },
+      () => { $('#selten-result').textContent = describeSequentialSolution(result); },
+    ]);
+    return result;
+  } catch (error) {
+    $('#selten-result').textContent = error.message;
+    return null;
+  }
+}
+
+$('#solve-selten').addEventListener('click', () => solveSelten(true));
+$$('[data-selten]').forEach((input) => input.addEventListener('input', () => {
+  clearSolutionTimers();
+  solveSelten(false);
+}));
+
+function bayesianInput() {
+  return {
+    probabilityTough: numberFrom('#harsanyi-prior') / 100,
+    entrantOut: numberFrom('#bayes-out'),
+    entrantIfFight: numberFrom('#bayes-entry-fight'),
+    entrantIfAccommodate: numberFrom('#bayes-entry-accommodate'),
+    toughFight: numberFrom('#bayes-tough-fight'),
+    toughAccommodate: numberFrom('#bayes-tough-accommodate'),
+    weakFight: numberFrom('#bayes-weak-fight'),
+    weakAccommodate: numberFrom('#bayes-weak-accommodate'),
+  };
+}
+
+function resetHarsanyiVisual() {
+  $$('.type-tree .nature-node, .type-tree .type-card, .type-tree .type-edge, .type-tree .entrant-decision').forEach((element) => element.classList.remove('active', 'chosen'));
+}
+
+function expectedText([minimum, maximum]) {
+  return Math.abs(maximum - minimum) < 1e-9 ? minimum.toFixed(2) : `[${minimum.toFixed(2)}, ${maximum.toFixed(2)}]`;
+}
+
+function describeBayesianSolution(result) {
+  return `Type strategy: Tough → ${result.typeBestActions.Tough.join(' or ')}; Weak → ${result.typeBestActions.Weak.join(' or ')}. Expected entry payoff = ${expectedText(result.expectedEntryRange)} versus stay out = ${result.entrantOut.toFixed(2)}. Entrant: ${result.entrantRecommendation}.`;
+}
+
+function writeBayesianLabels(result) {
+  $('#harsanyi-prior-output').textContent = result.probabilityTough.toFixed(2);
+  $('#harsanyi-tough-prob').textContent = `p = ${result.probabilityTough.toFixed(2)}`;
+  $('#harsanyi-weak-prob').textContent = `1 − p = ${result.probabilityWeak.toFixed(2)}`;
+  $('#harsanyi-tough-action').textContent = `Action: ${result.typeBestActions.Tough.join(' or ')}`;
+  $('#harsanyi-weak-action').textContent = `Action: ${result.typeBestActions.Weak.join(' or ')}`;
+  $('#harsanyi-entrant-action').textContent = `Entrant: ${result.entrantRecommendation}`;
+}
+
+function markBayesianSolution(result) {
+  writeBayesianLabels(result);
+  $$('[data-type-edge], .type-card').forEach((element) => element.classList.add('chosen'));
+  $('[data-type-node="entrant"]').classList.add('chosen');
+}
+
+function solveHarsanyi(animate = true) {
+  try {
+    const result = solveBayesianEntry(bayesianInput());
+    resetHarsanyiVisual();
+    $('#harsanyi-prior-output').textContent = result.probabilityTough.toFixed(2);
+    $('#harsanyi-tough-prob').textContent = `p = ${result.probabilityTough.toFixed(2)}`;
+    $('#harsanyi-weak-prob').textContent = `1 − p = ${result.probabilityWeak.toFixed(2)}`;
+    if (!animate) {
+      markBayesianSolution(result);
+      $('#harsanyi-result').textContent = describeBayesianSolution(result);
+      return result;
+    }
+    runSolutionSteps([
+      () => { $('[data-type-node="nature"]').classList.add('active'); $('#harsanyi-result').textContent = 'Step 1: Nature draws the incumbent’s private type using the common prior.'; },
+      () => { $$('[data-type-edge], .type-card').forEach((element) => element.classList.add('chosen')); writeBayesianLabels(result); $('#harsanyi-result').textContent = 'Step 2: specify a best action for every possible type—not only the realized type.'; },
+      () => { $('[data-type-node="entrant"]').classList.add('chosen'); $('#harsanyi-result').textContent = describeBayesianSolution(result); },
+    ]);
+    return result;
+  } catch (error) {
+    $('#harsanyi-result').textContent = error.message;
+    return null;
+  }
+}
+
+$('#solve-harsanyi').addEventListener('click', () => solveHarsanyi(true));
+$('#sample-harsanyi').addEventListener('click', () => {
+  const result = solveHarsanyi(false);
+  if (!result) return;
+  const type = Math.random() < result.probabilityTough ? 'Tough' : 'Weak';
+  const token = $('#harsanyi-token');
+  token.classList.remove('to-tough', 'to-weak');
+  void token.getBoundingClientRect();
+  token.classList.add(`to-${type.toLowerCase()}`);
+  $('#harsanyi-sample').textContent = `Nature drew ${type}; this type chooses ${result.typeBestActions[type].join(' or ')}. The strategy still had to specify both types.`;
+});
+$('#harsanyi-prior').addEventListener('input', () => solveHarsanyi(false));
+$$('.bayes-controls input').forEach((input) => input.addEventListener('input', () => solveHarsanyi(false)));
 
 function checkAbstract() {
   const result = validateAbstract($('#abstract-input').value);
@@ -292,7 +519,10 @@ motionButton.addEventListener('click', () => {
   const paused = document.body.classList.toggle('motion-paused');
   motionButton.textContent = paused ? 'Resume motion' : 'Pause motion';
   motionButton.setAttribute('aria-pressed', String(paused));
-  if (paused) stopPlayback();
+  if (paused) {
+    stopPlayback();
+    clearSolutionTimers();
+  }
 });
 
 const revealTargets = $$('.chapter-heading, .panel, .lineage, .handoff');
@@ -310,8 +540,10 @@ if (!reducedMotion && 'IntersectionObserver' in window) {
   revealTargets.forEach((target) => target.classList.add('revealed'));
 }
 
-renderDiagnosis();
 updateNash();
+solveSelten(false);
+solveHarsanyi(false);
+renderDiagnosis();
 checkAbstract();
 renderPreferenceTable();
 createMatchingNodes();

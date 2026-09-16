@@ -65,18 +65,126 @@ function validateMatrix(matrix, label) {
   });
 }
 
-export function findPureNash(rowPayoffs, columnPayoffs) {
+export function analyzePureNash(rowPayoffs, columnPayoffs) {
   validateMatrix(rowPayoffs, 'Row payoffs');
   validateMatrix(columnPayoffs, 'Column payoffs');
-  const equilibria = [];
-  for (let row = 0; row < 2; row += 1) {
-    for (let column = 0; column < 2; column += 1) {
-      const rowBest = Number(rowPayoffs[row][column]) >= Number(rowPayoffs[1 - row][column]);
-      const columnBest = Number(columnPayoffs[row][column]) >= Number(columnPayoffs[row][1 - column]);
-      if (rowBest && columnBest) equilibria.push([row, column]);
+  const rowBestCells = [];
+  const columnBestCells = [];
+  for (let column = 0; column < 2; column += 1) {
+    const best = Math.max(Number(rowPayoffs[0][column]), Number(rowPayoffs[1][column]));
+    for (let row = 0; row < 2; row += 1) {
+      if (Number(rowPayoffs[row][column]) === best) rowBestCells.push([row, column]);
     }
   }
-  return equilibria;
+  for (let row = 0; row < 2; row += 1) {
+    const best = Math.max(Number(columnPayoffs[row][0]), Number(columnPayoffs[row][1]));
+    for (let column = 0; column < 2; column += 1) {
+      if (Number(columnPayoffs[row][column]) === best) columnBestCells.push([row, column]);
+    }
+  }
+  const key = ([row, column]) => `${row}${column}`;
+  const columnBestKeys = new Set(columnBestCells.map(key));
+  return {
+    rowBestCells,
+    columnBestCells,
+    equilibria: rowBestCells.filter((cell) => columnBestKeys.has(key(cell))),
+  };
+}
+
+export function findPureNash(rowPayoffs, columnPayoffs) {
+  return analyzePureNash(rowPayoffs, columnPayoffs).equilibria;
+}
+
+function payoffPair(value, label) {
+  if (!Array.isArray(value) || value.length !== 2 || value.some((payoff) => !Number.isFinite(Number(payoff)))) {
+    throw new TypeError(`${label} must contain two numeric payoffs.`);
+  }
+  return value.map(Number);
+}
+
+function maximizingLabels(entries) {
+  const maximum = Math.max(...entries.map(([, payoff]) => Number(payoff)));
+  return entries.filter(([, payoff]) => Number(payoff) === maximum).map(([label]) => label);
+}
+
+export function solveSequentialEntry({ out = [1, 2], fight = [-1, -1], accommodate = [2, 1] } = {}) {
+  const terminals = {
+    'Stay out': payoffPair(out, 'Stay-out outcome'),
+    Fight: payoffPair(fight, 'Fight outcome'),
+    Accommodate: payoffPair(accommodate, 'Accommodation outcome'),
+  };
+  const incumbentBestActions = maximizingLabels([
+    ['Fight', terminals.Fight[1]],
+    ['Accommodate', terminals.Accommodate[1]],
+  ]);
+  const profiles = incumbentBestActions.flatMap((incumbent) => {
+    const continuation = terminals[incumbent];
+    const entrantBestActions = maximizingLabels([
+      ['Stay out', terminals['Stay out'][0]],
+      ['Enter', continuation[0]],
+    ]);
+    return entrantBestActions.map((entrant) => ({
+      entrant,
+      incumbent,
+      outcome: entrant === 'Stay out' ? 'Stay out' : incumbent,
+      payoffs: entrant === 'Stay out' ? terminals['Stay out'] : continuation,
+    }));
+  });
+  return { terminals, incumbentBestActions, profiles };
+}
+
+function finiteNumber(value, label) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new TypeError(`${label} must be numeric.`);
+  return number;
+}
+
+export function solveBayesianEntry({
+  probabilityTough = 0.4,
+  entrantOut = 0,
+  entrantIfFight = -1,
+  entrantIfAccommodate = 2,
+  toughFight = 2,
+  toughAccommodate = 0,
+  weakFight = -2,
+  weakAccommodate = 1,
+} = {}) {
+  const probability = finiteNumber(probabilityTough, 'Tough-type probability');
+  if (probability < 0 || probability > 1) throw new RangeError('Tough-type probability must be between 0 and 1.');
+  const outside = finiteNumber(entrantOut, 'Stay-out payoff');
+  const entrantPayoffs = {
+    Fight: finiteNumber(entrantIfFight, 'Entrant payoff after Fight'),
+    Accommodate: finiteNumber(entrantIfAccommodate, 'Entrant payoff after Accommodate'),
+  };
+  const typeBestActions = {
+    Tough: maximizingLabels([
+      ['Fight', finiteNumber(toughFight, 'Tough payoff from Fight')],
+      ['Accommodate', finiteNumber(toughAccommodate, 'Tough payoff from Accommodate')],
+    ]),
+    Weak: maximizingLabels([
+      ['Fight', finiteNumber(weakFight, 'Weak payoff from Fight')],
+      ['Accommodate', finiteNumber(weakAccommodate, 'Weak payoff from Accommodate')],
+    ]),
+  };
+  const expectedEntryPayoffs = typeBestActions.Tough.flatMap((toughAction) =>
+    typeBestActions.Weak.map((weakAction) => (
+      probability * entrantPayoffs[toughAction]
+      + (1 - probability) * entrantPayoffs[weakAction]
+    )));
+  const minimum = Math.min(...expectedEntryPayoffs);
+  const maximum = Math.max(...expectedEntryPayoffs);
+  let entrantRecommendation = 'Depends on how an indifferent type acts';
+  if (minimum > outside) entrantRecommendation = 'Enter';
+  else if (maximum < outside) entrantRecommendation = 'Stay out';
+  else if (minimum === maximum && minimum === outside) entrantRecommendation = 'Either Enter or Stay out';
+  return {
+    probabilityTough: probability,
+    probabilityWeak: 1 - probability,
+    typeBestActions,
+    expectedEntryRange: [minimum, maximum],
+    entrantOut: outside,
+    entrantRecommendation,
+  };
 }
 
 function sentenceList(text = '') {

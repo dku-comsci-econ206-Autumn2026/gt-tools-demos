@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import {
   SCHOOL_CHOICE_SCENARIO,
+  analyzePureNash,
   classifyGame,
   describeMatchingRound,
   findBlockingPairs,
   findPureNash,
   runBoston,
   runDeferredAcceptance,
+  solveBayesianEntry,
+  solveSequentialEntry,
   validateAbstract,
 } from '../web/logic.js';
 
@@ -24,6 +27,24 @@ assert.equal(classifyGame({ players, privateInformation: true }).lens, 'Harsanyi
 
 assert.deepEqual(findPureNash([[3, 0], [5, 1]], [[3, 5], [0, 1]]), [[1, 1]]);
 assert.deepEqual(findPureNash([[1, -1], [-1, 1]], [[-1, 1], [1, -1]]), []);
+assert.deepEqual(analyzePureNash([[3, 0], [5, 1]], [[3, 5], [0, 1]]), {
+  rowBestCells: [[1, 0], [1, 1]],
+  columnBestCells: [[0, 1], [1, 1]],
+  equilibria: [[1, 1]],
+});
+
+const sequential = solveSequentialEntry();
+assert.deepEqual(sequential.incumbentBestActions, ['Accommodate']);
+assert.deepEqual(sequential.profiles, [{ entrant: 'Enter', incumbent: 'Accommodate', outcome: 'Accommodate', payoffs: [2, 1] }]);
+const deterred = solveSequentialEntry({ out: [1, 2], fight: [-1, 3], accommodate: [2, 1] });
+assert.equal(deterred.profiles[0].entrant, 'Stay out');
+assert.equal(deterred.profiles[0].incumbent, 'Fight');
+
+const bayesian = solveBayesianEntry();
+assert.deepEqual(bayesian.typeBestActions, { Tough: ['Fight'], Weak: ['Accommodate'] });
+assert.ok(Math.abs(bayesian.expectedEntryRange[0] - 0.8) < 1e-9);
+assert.equal(bayesian.entrantRecommendation, 'Enter');
+assert.equal(solveBayesianEntry({ probabilityTough: 0.8 }).entrantRecommendation, 'Stay out');
 
 assert.equal(validateAbstract('Institutions allocate scarce goods. However, existing work leaves the behavioral gap unresolved. We test a mechanism.').passes, true);
 assert.equal(validateAbstract('Institutions allocate scarce goods. We build a mechanism.').passes, false);
@@ -42,4 +63,4 @@ const deferredRoundTwo = describeMatchingRound(SCHOOL_CHOICE_SCENARIO, deferred,
 assert.match(deferredRoundTwo.decisions.join(' '), /tentatively hold Bo; reject\/release Chen/);
 assert.match(deferredRoundTwo.continuation, /Rejected or displaced and proposing next: Chen/);
 
-console.log('Web logic checks passed: triage, Nash, abstract gap, matching paths, round narration, and stability.');
+console.log('Web logic checks passed: triage, Nash, Selten, Harsanyi, abstract gap, matching paths, round narration, and stability.');
