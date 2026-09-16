@@ -2,7 +2,7 @@
 
 All three notebooks ran all **22 code cells** in fresh local Python processes, with their actual outputs recorded in display order. The local suite passed **27 model, presentation, and release-contract tests**, including 27 Bayesian parameter combinations, Boston/deferred-acceptance allocation checks, a blocking-pair counterexample, and a reporting-manipulation counterexample.
 
-KaTeX typeset **46 mathematical expressions** in strict mode; the guard also rejects Markdown-sensitive bare-star superscripts. Mermaid parsed all three README diagrams. Every notebook converted to static HTML with saved output; notebook 03 includes two compact, accessible HTML matching animations.
+KaTeX typeset **36 mathematical expressions** in strict mode; the guard also rejects Markdown-sensitive bare-star superscripts. Mermaid parsed all three README diagrams. Every notebook converted to static HTML with saved output; notebook 03 includes two compact, accessible HTML matching animations.
 
 The Three-Lens Studio passed its dependency-free build and pure-JavaScript algorithm suite. Playwright Chromium exercised the model gate, Harsanyi triage, abstract gap check, both matching mechanisms, and final comparison dialog at **1440×1000** and **390×844**. Neither viewport had horizontal page overflow or clipped panel content. See [browser_render_checks.json](browser_render_checks.json). Full-page captures are generated locally for visual review but excluded from version control to keep Git import lightweight.
 
