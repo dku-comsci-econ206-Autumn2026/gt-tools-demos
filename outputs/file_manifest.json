@@ -24,8 +24,8 @@
     "sha256": "a4d41795115e6a49ba4218caa8b54b5ff4351e959e3652bfb1e6b5da6907a414"
   },
   "README.md": {
-    "bytes": 28670,
-    "sha256": "e7ee7c8bda795266d4be7e5a1dd62d7f24f497c1f156d6f0c4b5c88a729bc93b"
+    "bytes": 23384,
+    "sha256": "c6f1c9ce24a4cee9e016aa2d86bfcb23fe23677beed43a9d3a432d16e201b004"
   },
   "docs/01_Matrix_Games_Demo.md": {
     "bytes": 10005,
@@ -205,7 +205,7 @@
   },
   "outputs/README.md": {
     "bytes": 2262,
-    "sha256": "1684dc089506aa81405e302271e9447be77ca4f8b6f1b7cc369d9fbcda73a880"
+    "sha256": "8c40e0fc40415a053c0d325dbb8795b1124d158eb1f133b116474fe30f25fe28"
   },
   "outputs/browser_render_checks.json": {
     "bytes": 582,
@@ -213,7 +213,7 @@
   },
   "outputs/markdown_render_checks.json": {
     "bytes": 238,
-    "sha256": "867a76faef2e2897ce4944fa77ab8cc627afb69efd1653833cf3eb95676c02ed"
+    "sha256": "b6940ff716d31f162fa402b3f00d3e6aabbaa47b3332745fff3ddfc4db1babcf"
   },
   "outputs/model_tests.txt": {
     "bytes": 3444,
@@ -225,7 +225,7 @@
   },
   "outputs/validation.json": {
     "bytes": 3021,
-    "sha256": "aab40d14301401681f719098a4e3c897a0a13a8dd688c3f39426c7346a942753"
+    "sha256": "a0a1a5ec239379d4437680ae1c7549d205015ffd6755339e4ee74c824d67ea93"
   },
   "outputs/visual_refresh_checks.json": {
     "bytes": 786,
